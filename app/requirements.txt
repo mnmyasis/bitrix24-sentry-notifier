@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+httpx
+loguru
+sentry-sdk[fastapi]
+python-dotenv

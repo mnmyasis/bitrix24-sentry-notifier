@@ -1,0 +1,11 @@
+services:
+  webhook-service:
+    build: .
+    container_name: sentry-webhook-service
+    ports:
+      - "8007:8000"
+    volumes:
+      - ./app:/app
+    env_file:
+      - "service.env"
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
