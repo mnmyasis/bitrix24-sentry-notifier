@@ -11,10 +11,11 @@ from loguru import logger
 import sentry_sdk
 
 from os import getenv
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 GOOGLE_CHAT_WEBHOOK_URL = getenv("GOOGLE_CHAT_WEBHOOK_URL")
 SENTRY_DSN = getenv("SENTRY_DSN")
+ALLOWED_ENVIRONMENTS = getenv("ALLOWED_ENVIRONMENTS", "production,prod").split(",")
 
 if not GOOGLE_CHAT_WEBHOOK_URL or not SENTRY_DSN:
     raise ValueError(
@@ -31,9 +32,12 @@ sentry_sdk.init(
 app = FastAPI()
 
 
-def transform_sentry_webhook_to_google_chat(sentry_payload: Dict[str, Any]) -> Dict[str, str]:
+def transform_sentry_webhook_to_google_chat(sentry_payload: Dict[str, Any]) -> Optional[Dict[str, str]]:
     """Transform Sentry webhook payload into a format suitable for Google Chat."""
     event = sentry_payload.get("event", {})
+    environment = event.get("environment", "").lower().strip()
+    if environment not in ALLOWED_ENVIRONMENTS:
+        return None
 
     return {
         "text": (
@@ -68,16 +72,21 @@ def health_check() -> Response:
 async def receive_sentry_webhook(request: Request):
     """Process a Sentry webhook."""
     data = await request.json()
-    logger.info(f"Received webhook: {data}")
 
     google_chat_message = transform_sentry_webhook_to_google_chat(data)
+    if not google_chat_message:
+        return {"message": "Environment not allowed. Skipping notification."}
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            GOOGLE_CHAT_WEBHOOK_URL,
-            json=google_chat_message,
-            headers={"Content-Type": "application/json; charset=UTF-8"},
-        )
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                GOOGLE_CHAT_WEBHOOK_URL,
+                json=google_chat_message,
+                headers={"Content-Type": "application/json; charset=UTF-8"},
+            )
+    except httpx.RequestError as exc:
+        logger.error(f"An error occurred while sending the message to Google Chat: {exc}")
+        logger.info(f"Received webhook: {data}")
 
     if response.status_code == 200:
         return {"message": "Webhook received and forwarded to Google Chat successfully"}
