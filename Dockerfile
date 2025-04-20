@@ -1,6 +1,6 @@
-FROM python:3.10.11-slim
+FROM python:3.10.17-slim
 
 WORKDIR /app
 
-COPY app/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

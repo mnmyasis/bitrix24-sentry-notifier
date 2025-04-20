@@ -23,16 +23,25 @@ if not GOOGLE_CHAT_WEBHOOK_URL or not SENTRY_DSN:
     )
 
 
-sentry_sdk.init(
-    dsn=SENTRY_DSN,
-    traces_sample_rate=1.0,
-    profiles_sample_rate=1.0,
-)
+def init_sentry() -> None:
+    """Initialize Sentry SDK for error tracking."""
+    if not hasattr(init_sentry, "_called"):
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            traces_sample_rate=1.0,
+            profiles_sample_rate=1.0,
+        )
+        init_sentry._called = True
+
+
+init_sentry()
 
 app = FastAPI()
 
 
-def transform_sentry_webhook_to_google_chat(sentry_payload: Dict[str, Any]) -> Optional[Dict[str, str]]:
+def transform_sentry_webhook_to_google_chat(
+    sentry_payload: Dict[str, Any],
+) -> Optional[Dict[str, str]]:
     """Transform Sentry webhook payload into a format suitable for Google Chat."""
     event = sentry_payload.get("event", {})
     environment = event.get("environment", "").lower().strip()
@@ -85,7 +94,9 @@ async def receive_sentry_webhook(request: Request):
                 headers={"Content-Type": "application/json; charset=UTF-8"},
             )
     except httpx.RequestError as exc:
-        logger.error(f"An error occurred while sending the message to Google Chat: {exc}")
+        logger.error(
+            f"An error occurred while sending the message to Google Chat: {exc}"
+        )
         logger.info(f"Received webhook: {data}")
 
     if response.status_code == 200:
