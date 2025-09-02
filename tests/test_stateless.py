@@ -10,7 +10,7 @@ with patch("sentry_sdk.init") as mock_sentry_init:
 
 @pytest.fixture(autouse=True)
 def mock_environment(monkeypatch):
-    monkeypatch.setenv("GOOGLE_CHAT_WEBHOOK_URL", "MOCK_URL")
+    monkeypatch.setenv("BITRIX24_WEBHOOK_URL", "MOCK_URL")
     monkeypatch.setenv("SENTRY_DSN", "MOCK_SENTRY_DSN")
     monkeypatch.setenv("ALLOWED_ENVIRONMENTS", "production,prod")
 

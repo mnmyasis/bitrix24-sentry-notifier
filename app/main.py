@@ -13,13 +13,14 @@ import sentry_sdk
 from os import getenv
 from typing import Any, Dict, Optional
 
-GOOGLE_CHAT_WEBHOOK_URL = getenv("GOOGLE_CHAT_WEBHOOK_URL")
+BITRIX24_WEBHOOK_URL = getenv("BITRIX24_WEBHOOK_URL")
+BITRIX24_DIALOG_ID = getenv("BITRIX24_DIALOG_ID")
 SENTRY_DSN = getenv("SENTRY_DSN")
 ALLOWED_ENVIRONMENTS = getenv("ALLOWED_ENVIRONMENTS", "production,prod").split(",")
 
-if not GOOGLE_CHAT_WEBHOOK_URL or not SENTRY_DSN:
+if not BITRIX24_WEBHOOK_URL or not SENTRY_DSN:
     raise ValueError(
-        "Please make sure that GOOGLE_CHAT_WEBHOOK_URL and SENTRY_DSN are specified in the service.env file."
+        "Please make sure that BITRIX24_WEBHOOK_URL and SENTRY_DSN are specified in the service.env file."
     )
 
 
@@ -40,16 +41,17 @@ app = FastAPI()
 
 
 def transform_sentry_webhook_to_google_chat(
-    sentry_payload: Dict[str, Any],
+        sentry_payload: Dict[str, Any],
 ) -> Optional[Dict[str, str]]:
-    """Transform Sentry webhook payload into a format suitable for Google Chat."""
+    """Transform Sentry webhook payload into a format suitable for Bitrix24."""
     event = sentry_payload.get("event", {})
     environment = event.get("environment", "").lower().strip()
     if environment not in ALLOWED_ENVIRONMENTS:
         return None
 
     return {
-        "text": (
+        "DIALOG_ID": BITRIX24_DIALOG_ID,
+        "MESSAGE": (
             f"*ID*: {sentry_payload.get('id')}\n"
             f"*Project*: {sentry_payload.get('project_name')}\n"
             f"*Environment*: {event.get('environment')}\n"
@@ -82,26 +84,26 @@ async def receive_sentry_webhook(request: Request):
     """Process a Sentry webhook."""
     data = await request.json()
 
-    google_chat_message = transform_sentry_webhook_to_google_chat(data)
-    if not google_chat_message:
+    bitrix_message = transform_sentry_webhook_to_google_chat(data)
+    if not bitrix_message:
         return {"message": "Environment not allowed. Skipping notification."}
 
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                GOOGLE_CHAT_WEBHOOK_URL,
-                json=google_chat_message,
+                BITRIX24_WEBHOOK_URL,
+                json=bitrix_message,
                 headers={"Content-Type": "application/json; charset=UTF-8"},
             )
     except httpx.RequestError as exc:
         logger.error(
-            f"An error occurred while sending the message to Google Chat: {exc}"
+            f"An error occurred while sending the message to Bitrix24: {exc}"
         )
         logger.info(f"Received webhook: {data}")
 
     if response.status_code == 200:
-        return {"message": "Webhook received and forwarded to Google Chat successfully"}
+        return {"message": "Webhook received and forwarded to Bitrix24 successfully"}
     else:
-        failed_message = f"Failed to send message to Google Chat: {response.text}"
+        failed_message = f"Failed to send message to Bitrix24: {response.text}"
         logger.error(failed_message)
         return {"error": failed_message}
