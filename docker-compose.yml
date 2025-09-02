@@ -2,7 +2,7 @@ services:
   webhook-service:
     build: 
       context: .
-    container_name: sentry-webhook-service
+    container_name: bitrix-sentry-webhook-service
     ports:
       - "8008:8000"
     env_file:
