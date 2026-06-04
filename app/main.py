@@ -40,8 +40,47 @@ init_sentry()
 
 app = FastAPI()
 
+def transform_glitchtip_webhook_to_bitrix24(
+    sentry_payload: Dict[str, Any],
+) -> Optional[Dict[str, str]]:
+    attachments = sentry_payload.get("attachments", [])
+    if not attachments:
+        return None
 
-def transform_sentry_webhook_to_google_chat(
+    att = attachments[0]
+
+    fields = att.get("fields", [])
+
+    def get_field(name: str):
+        for f in fields:
+            if f.get("title") == name:
+                return f.get("value")
+        return None
+
+    message = (
+        f"*{sentry_payload.get('text', 'Alert')}*\n"
+        f"*Title*: {att.get('title')}\n"
+        f"*Project*: {get_field('Project')}\n"
+        f"*Environment*: {get_field('Environment')}\n"
+        f"*Server*: {get_field('Server Name')}\n"
+        f"*Release*: {get_field('Release')}\n"
+        f"*URL*: {att.get('title_link')}"
+    )
+
+    environment = get_field("Environment")
+    if environment:
+        environment = environment.lower().strip()
+
+    if environment not in ALLOWED_ENVIRONMENTS:
+        return None
+
+    return {
+        "DIALOG_ID": BITRIX24_DIALOG_ID,
+        "MESSAGE": message,
+    }
+
+
+def transform_sentry_webhook_to_bitrix24(
         sentry_payload: Dict[str, Any],
 ) -> Optional[Dict[str, str]]:
     """Transform Sentry webhook payload into a format suitable for Bitrix24."""
@@ -85,7 +124,11 @@ async def receive_sentry_webhook(request: Request):
     """Process a Sentry webhook."""
     data = await request.json()
     logger.info(f"request data: {json.dumps(data, indent=4)}")
-    bitrix_message = transform_sentry_webhook_to_google_chat(data)
+    event_type = "glitchtip" if "attachments" in data else "sentry"
+    if event_type == "glitchtip":
+        bitrix_message = transform_glitchtip_webhook_to_bitrix24(data)
+    else:
+        bitrix_message = transform_glitchtip_webhook_to_bitrix24(data)
     if not bitrix_message:
         return {"message": "Environment not allowed. Skipping notification."}
 
