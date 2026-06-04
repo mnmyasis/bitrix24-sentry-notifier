@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request, Response, status
 import httpx
 from loguru import logger
 import sentry_sdk
+import json
 
 from os import getenv
 from typing import Any, Dict, Optional
@@ -83,7 +84,7 @@ def health_check() -> Response:
 async def receive_sentry_webhook(request: Request):
     """Process a Sentry webhook."""
     data = await request.json()
-
+    logger.info(f"request data: {json.dumps(data, indent=4)}")
     bitrix_message = transform_sentry_webhook_to_google_chat(data)
     if not bitrix_message:
         return {"message": "Environment not allowed. Skipping notification."}
@@ -102,6 +103,7 @@ async def receive_sentry_webhook(request: Request):
         logger.info(f"Received webhook: {data}")
 
     if response.status_code == 200:
+        logger.info(f"response: {response.text}")
         return {"message": "Webhook received and forwarded to Bitrix24 successfully"}
     else:
         failed_message = f"Failed to send message to Bitrix24: {response.text}"
